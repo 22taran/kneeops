@@ -24,7 +24,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ file, currentImageIndex, onIm
       try {
         // Note: This is a simplified version. In a real implementation,
         // you'd need to properly decode the pickle data and convert to images
-        const arrayBuffer = e.target?.result as ArrayBuffer;
+        // const arrayBuffer = e.target?.result as ArrayBuffer;
         
         // For now, we'll create placeholder images
         // In a real implementation, you'd parse the pickle data and convert to base64

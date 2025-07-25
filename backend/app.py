@@ -1,6 +1,7 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from fastapi.responses import JSONResponse
+from PIL import Image, ImageOps
 import torch
 import torch.nn as nn
 from torchvision import transforms
@@ -9,8 +10,12 @@ import io
 import json
 import pickle
 import os
-from typing import Dict, Any, List
+import base64
+from typing import Dict, Any, List, Tuple, Optional
 import timm
+
+# Import Grad-CAM utility
+from grad_cam import get_gradcam_visualization
 
 # Simple CNN model for knee injury classification
 class KneeInjuryCNN(nn.Module):
@@ -153,45 +158,61 @@ async def get_model_info():
         "success": True
     }
 
-def process_image_data(image_data):
-    """Process image data from .pck file"""
+def process_image_data(image_data, return_original=False):
+    """Process image data from .pck file
+    
+    Args:
+        image_data: Input image data (numpy array or tensor)
+        return_original: If True, returns both the processed tensor and original image
+        
+    Returns:
+        Processed tensor (and optionally the original image)
+    """
     try:
+        # Store original for visualization
+        original_image = None
+        
         # Convert to numpy array if needed
         if isinstance(image_data, torch.Tensor):
-            image_data = image_data.numpy()
+            original_image = image_data.numpy()
+        else:
+            original_image = np.array(image_data)
         
-        if not isinstance(image_data, np.ndarray):
+        if not isinstance(original_image, np.ndarray):
             raise ValueError("Image data must be a numpy array or tensor")
         
-        # Ensure data type is correct for PIL Image
-        if image_data.dtype != np.uint8:
-            # Normalize to 0-255 range
-            min_val = image_data.min()
-            max_val = image_data.max()
-            if max_val - min_val > 0:
-                image_data = ((image_data - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+        # Ensure we have a 2D image for processing
+        if len(original_image.shape) == 3 and original_image.shape[2] == 1:
+            # Single channel image
+            original_image = original_image[:, :, 0]
+        elif len(original_image.shape) == 3 and original_image.shape[2] > 3:
+            # Multi-channel image, take first channel
+            original_image = original_image[:, :, 0]
+        
+        # Create a copy for processing
+        processed_image = original_image.copy()
+        
+        # Normalize to 0-255 range if needed
+        if processed_image.dtype != np.uint8:
+            min_val = processed_image.min()
+            max_val = processed_image.max()
+            if max_val > min_val:  # Avoid division by zero
+                processed_image = ((processed_image - min_val) / (max_val - min_val) * 255).astype(np.uint8)
             else:
-                image_data = np.zeros_like(image_data, dtype=np.uint8)
+                processed_image = np.zeros_like(processed_image, dtype=np.uint8)
         
         # Convert to PIL Image
-        if len(image_data.shape) == 2:
-            pil_image = Image.fromarray(image_data, mode='L')
-        elif len(image_data.shape) == 3:
-            if image_data.shape[2] == 1:
-                pil_image = Image.fromarray(image_data[:, :, 0], mode='L')
-            else:
-                middle_slice = image_data.shape[2] // 2
-                pil_image = Image.fromarray(image_data[:, :, middle_slice], mode='L')
-        else:
-            raise ValueError(f"Unsupported image shape: {image_data.shape}")
-        
-        # Convert to RGB if needed
-        if pil_image.mode == 'L':
-            pil_image = pil_image.convert('RGB')
+        pil_image = Image.fromarray(processed_image, mode='L')
         
         # Apply transforms
         image_tensor = transform(pil_image)
         
+        if return_original:
+            # Convert original to RGB if needed for visualization
+            if len(original_image.shape) == 2:  # Grayscale
+                original_image = np.stack((original_image,) * 3, axis=-1)
+            return image_tensor, original_image
+            
         return image_tensor
         
     except Exception as e:
@@ -321,14 +342,28 @@ async def upload_mri(file: UploadFile = File(...)):
         overall_analysis["overall_severity"] = _determine_overall_severity(overall_analysis)
         overall_analysis["overall_recommendations"] = _get_overall_recommendations(overall_analysis)
         
-        # Return response
+        # Prepare MRI data for response
+        mri_data_for_response = []
+        for tensor in processed_tensors:
+            # Convert tensor to numpy and normalize for display
+            img_data = tensor.cpu().numpy()
+            # If it's a batch, take first item
+            if len(img_data.shape) == 4:
+                img_data = img_data[0]
+            # If it's a single channel image, remove the channel dimension for compatibility
+            if len(img_data.shape) == 3 and img_data.shape[0] == 1:
+                img_data = img_data[0]
+            mri_data_for_response.append(img_data.tolist())
+        
+        # Return response with MRI data
         if len(all_predictions) == 1:
             response = {
                 "success": True,
                 "prediction": all_predictions[0],
                 "filename": file.filename,
                 "total_images": len(processed_tensors),
-                "overall_analysis": overall_analysis
+                "overall_analysis": overall_analysis,
+                "mri_data": mri_data_for_response[0] if mri_data_for_response else None
             }
         else:
             response = {
@@ -336,7 +371,8 @@ async def upload_mri(file: UploadFile = File(...)):
                 "predictions": all_predictions,
                 "filename": file.filename,
                 "total_images": len(processed_tensors),
-                "overall_analysis": overall_analysis
+                "overall_analysis": overall_analysis,
+                "mri_data": mri_data_for_response
             }
         
         return response
@@ -422,6 +458,66 @@ def _get_overall_recommendations(analysis: dict) -> list:
     recommendations.append("Final diagnosis should be made by healthcare professional")
     
     return recommendations
+
+@app.post("/api/visualize-gradcam")
+async def visualize_gradcam(
+    file: UploadFile = File(...),
+    slice_index: int = Query(0, description="Slice index for 3D MRI volumes"),
+    target_class: int = Query(..., description="Target class index for Grad-CAM")
+):
+    """Generate Grad-CAM visualization for the uploaded MRI"""
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+    
+    if not file.filename.endswith('.pck'):
+        raise HTTPException(status_code=400, detail="File must be a .pck file")
+    
+    try:
+        # Read and process the file
+        file_bytes = await file.read()
+        pck_data = pickle.loads(file_bytes)
+        
+        # Handle 3D volumes
+        if isinstance(pck_data, np.ndarray) and len(pck_data.shape) == 3:
+            if slice_index < 0 or slice_index >= pck_data.shape[2]:
+                raise HTTPException(status_code=400, detail=f"Invalid slice index. Must be between 0 and {pck_data.shape[2]-1}")
+            image_data = pck_data[:, :, slice_index]
+        else:
+            image_data = pck_data
+        
+        # Process image and get both tensor and original
+        input_tensor, original_image = process_image_data(image_data, return_original=True)
+        
+        # Add batch dimension
+        input_tensor = input_tensor.unsqueeze(0).to(device)
+        
+        # Get the last convolutional layer for Grad-CAM
+        target_layer = None
+        for module in reversed(list(model.modules())):
+            if isinstance(module, torch.nn.Conv2d):
+                target_layer = module
+                break
+        
+        if target_layer is None:
+            raise HTTPException(status_code=500, detail="No convolutional layer found in the model")
+        
+        # Get Grad-CAM visualization
+        _, base64_img = get_gradcam_visualization(
+            model=model,
+            input_tensor=input_tensor,
+            original_image=original_image,
+            target_class=target_class,
+            target_layer=target_layer
+        )
+        
+        return {
+            "success": True,
+            "visualization": f"data:image/png;base64,{base64_img}",
+            "target_class": label_map.get(target_class, f"Class {target_class}")
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating Grad-CAM visualization: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

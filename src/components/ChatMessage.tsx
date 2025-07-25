@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Bot, Loader2 } from 'lucide-react';
 import { ChatMessage as ChatMessageType } from '../types';
+import AnalysisResults from './AnalysisResults';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -34,8 +35,19 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 <span className="text-sm">AI is analyzing...</span>
               </div>
             ) : (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {message.content}
+              <div className="text-sm leading-relaxed">
+                {message.analysisResults ? (
+                  <AnalysisResults
+                    averageConfidence={message.analysisResults.averageConfidence}
+                    diagnosis={message.analysisResults.diagnosis}
+                    diagnosisConfidence={message.analysisResults.diagnosisConfidence}
+                    processedImages={message.analysisResults.processedImages}
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap">
+                    {message.content}
+                  </div>
+                )}
               </div>
             )}
           </div>

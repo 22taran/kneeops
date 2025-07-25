@@ -8,13 +8,15 @@ interface ChatInterfaceProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  className?: string;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   onSendMessage,
   disabled = false,
-  placeholder
+  placeholder,
+  className = ''
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +29,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full bg-white dark:bg-medical-800 ${className}`}>
       {/* Chat Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
