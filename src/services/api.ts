@@ -34,25 +34,42 @@ class APIService {
 
   // Upload MRI file to ML model
   async uploadMRI(file: File): Promise<any> {
-    console.log('Starting file upload for:', file.name);
+    console.log('Starting file upload for:', file.name, 'size:', file.size, 'type:', file.type);
     const formData = new FormData();
     formData.append('file', file);
 
     try {
       console.log('Sending request to:', `${this.baseURL}/api/upload-mri`);
+      console.time('MRI Upload');
       const response = await fetch(`${this.baseURL}/api/upload-mri`, {
         method: 'POST',
         body: formData,
       });
+      console.timeEnd('MRI Upload');
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('HTTP error response:', errorText);
+        console.error('HTTP error response:', response.status, response.statusText, errorText);
         throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('Backend response:', result);
+      console.log('Upload successful, response keys:', Object.keys(result));
+      
+      // Log MRI data structure if it exists
+      if (result.mri_data) {
+        console.log('MRI data type:', Array.isArray(result.mri_data) ? 'array' : typeof result.mri_data);
+        if (Array.isArray(result.mri_data)) {
+          console.log('MRI data length:', result.mri_data.length);
+          if (result.mri_data.length > 0) {
+            console.log('First slice type:', typeof result.mri_data[0]);
+            if (Array.isArray(result.mri_data[0])) {
+              console.log('First slice dimensions:', result.mri_data[0].length, 'x', 
+                Array.isArray(result.mri_data[0][0]) ? result.mri_data[0][0].length : '1D');
+            }
+          }
+        }
+      }
       
       // Handle the new detailed response format
       if (result.success) {

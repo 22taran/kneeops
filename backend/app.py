@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps
 import torch
+import numpy as np
+import io
+import base64
 import torch.nn as nn
 from torchvision import transforms
 import numpy as np
@@ -17,32 +20,19 @@ import timm
 # Import Grad-CAM utility
 from grad_cam import get_gradcam_visualization
 
-# Simple CNN model for knee injury classification
-class KneeInjuryCNN(nn.Module):
-    def __init__(self, num_classes=3):
-        super(KneeInjuryCNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-        self.flatten = nn.Flatten()
-        self.fc_layers = nn.Sequential(
-            nn.Linear(32 * 80 * 80, 512),
-            nn.ReLU(),
-            nn.Linear(512, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes)
-        )
+# Focal Loss implementation matching training
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.ce = nn.CrossEntropyLoss(reduction='none')
 
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.flatten(x)
-        x = self.fc_layers(x)
-        return x
+    def forward(self, inputs, targets):
+        ce_loss = self.ce(inputs, targets)
+        pt = torch.exp(-ce_loss)
+        loss = self.alpha * ((1 - pt) ** self.gamma) * ce_loss
+        return loss.mean()
 
 # Initialize FastAPI app
 app = FastAPI(title="KneeOps API", description="API for knee MRI classification")
@@ -83,18 +73,32 @@ def get_transform():
     ])
 
 def load_model():
-    """Load or create the model"""
-    global model, device, transform
+    """Load the trained ResNet18 model"""
+    global model, device, transform, class_names, label_map
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    # Create model (ResNet18 from timm, matching training)
-    model = timm.create_model('resnet18', pretrained=False, num_classes=len(label_map), in_chans=1)
+    # Load class names from file if available, otherwise use default
+    class_names = ["Healthy", "ACL Injury", "Meniscus Tear"]
+    try:
+        if os.path.exists('models/classes.json'):
+            with open('models/classes.json', 'r') as f:
+                class_names = json.load(f)
+        elif os.path.exists('models/classes.npy'):
+            class_names = np.load('models/classes.npy').tolist()
+    except Exception as e:
+        print(f"Warning: Could not load class names from file: {e}")
+    
+    label_map = {i: name for i, name in enumerate(class_names)}
+    num_classes = len(class_names)
+    
+    # Create model (matching training setup)
+    model = timm.create_model('resnet18', pretrained=False, num_classes=num_classes, in_chans=1)
     model.to(device)
     model.eval()
     
-    # Try to load trained weights
+    # Load trained weights
     model_path = 'models/best_knee_model.pth'
     if os.path.exists(model_path):
         try:
@@ -158,62 +162,85 @@ async def get_model_info():
         "success": True
     }
 
-def process_image_data(image_data, return_original=False):
+def numpy_to_base64(array: np.ndarray) -> str:
+    """Convert a numpy array to a base64-encoded PNG image.
+    
+    Args:
+        array: 2D numpy array containing the image data
+        
+    Returns:
+        base64-encoded PNG image as a string
+    """
+    try:
+        # Normalize the array to 0-255
+        if array.dtype != np.uint8:
+            array = array.astype(np.float32)
+            array_min = np.min(array)
+            array_max = np.max(array)
+            if array_max > array_min:  # Avoid division by zero
+                array = (array - array_min) / (array_max - array_min) * 255.0
+            array = array.astype(np.uint8)
+        
+        # Convert to PIL Image
+        img = Image.fromarray(array)
+        
+        # Convert to PNG in memory
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        
+        # Encode as base64 and return as string
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    except Exception as e:
+        print(f"Error converting array to base64: {str(e)}")
+        return ""
+
+def process_image_data(image_data, return_original=False, return_base64=False):
     """Process image data from .pck file
     
     Args:
         image_data: Input image data (numpy array or tensor)
         return_original: If True, returns both the processed tensor and original image
+        return_base64: If True, returns base64-encoded PNG instead of tensor
         
     Returns:
-        Processed tensor (and optionally the original image)
+        Processed tensor (and optionally the original image or base64 string)
     """
     try:
-        # Store original for visualization
-        original_image = None
+        # Convert to numpy array if it's a tensor
+        if torch.is_tensor(image_data):
+            image_data = image_data.cpu().numpy()
         
-        # Convert to numpy array if needed
-        if isinstance(image_data, torch.Tensor):
-            original_image = image_data.numpy()
+        # Store original for potential return
+        original_data = image_data.copy()
+            
+        # Handle different dimensionalities
+        if len(image_data.shape) == 3:  # If it's a batch with single channel
+            if image_data.shape[0] == 1:  # If channel is first
+                image_data = image_data[0]  # Remove channel dimension
+            else:  # If channel is last
+                image_data = image_data[:, :, 0]  # Take first channel
+        elif len(image_data.shape) == 2:  # If it's already 2D
+            pass  # No need to modify
         else:
-            original_image = np.array(image_data)
-        
-        if not isinstance(original_image, np.ndarray):
-            raise ValueError("Image data must be a numpy array or tensor")
-        
-        # Ensure we have a 2D image for processing
-        if len(original_image.shape) == 3 and original_image.shape[2] == 1:
-            # Single channel image
-            original_image = original_image[:, :, 0]
-        elif len(original_image.shape) == 3 and original_image.shape[2] > 3:
-            # Multi-channel image, take first channel
-            original_image = original_image[:, :, 0]
-        
-        # Create a copy for processing
-        processed_image = original_image.copy()
-        
-        # Normalize to 0-255 range if needed
-        if processed_image.dtype != np.uint8:
-            min_val = processed_image.min()
-            max_val = processed_image.max()
-            if max_val > min_val:  # Avoid division by zero
-                processed_image = ((processed_image - min_val) / (max_val - min_val) * 255).astype(np.uint8)
-            else:
-                processed_image = np.zeros_like(processed_image, dtype=np.uint8)
-        
+            raise ValueError(f"Unsupported image data shape: {image_data.shape}")
+            
         # Convert to PIL Image
-        pil_image = Image.fromarray(processed_image, mode='L')
+        img = Image.fromarray(image_data.astype('uint8'))
         
-        # Apply transforms
-        image_tensor = transform(pil_image)
+        if return_base64:
+            # Return base64-encoded PNG
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            return img_base64
+        
+        # Apply transformations for model input
+        transform = get_transform()
+        tensor = transform(img)
         
         if return_original:
-            # Convert original to RGB if needed for visualization
-            if len(original_image.shape) == 2:  # Grayscale
-                original_image = np.stack((original_image,) * 3, axis=-1)
-            return image_tensor, original_image
-            
-        return image_tensor
+            return tensor, original_data
+        return tensor
         
     except Exception as e:
         print(f"Error processing image data: {str(e)}")
@@ -242,16 +269,43 @@ async def upload_mri(file: UploadFile = File(...)):
         
         # Process images
         processed_tensors = []
+        mri_previews = []
         
+        def process_slice(slice_data, index):
+            # Get the tensor for model prediction
+            tensor = process_image_data(slice_data, return_original=False, return_base64=False)
+            if tensor is None:
+                return None
+                
+            # Get base64-encoded image for preview
+            img_base64 = process_image_data(slice_data, return_original=False, return_base64=True)
+            if not img_base64:
+                return None
+                
+            return {
+                'tensor': tensor,
+                'preview': f"data:image/png;base64,{img_base64}",
+                'index': index
+            }
+        
+        # Process all slices
         if isinstance(pck_data, list):
-            for item in pck_data:
-                tensor = process_image_data(item)
-                if tensor is not None:
-                    processed_tensors.append(tensor)
+            for i, item in enumerate(pck_data):
+                result = process_slice(item, i)
+                if result:
+                    processed_tensors.append(result['tensor'])
+                    mri_previews.append({
+                        'preview': result['preview'],
+                        'index': result['index']
+                    })
         else:
-            tensor = process_image_data(pck_data)
-            if tensor is not None:
-                processed_tensors.append(tensor)
+            result = process_slice(pck_data, 0)
+            if result:
+                processed_tensors.append(result['tensor'])
+                mri_previews.append({
+                    'preview': result['preview'],
+                    'index': result['index']
+                })
         
         if not processed_tensors:
             raise HTTPException(status_code=400, detail="No valid image data found in .pck file")
@@ -355,25 +409,21 @@ async def upload_mri(file: UploadFile = File(...)):
                 img_data = img_data[0]
             mri_data_for_response.append(img_data.tolist())
         
-        # Return response with MRI data
+        # Return response with MRI data and previews
+        response = {
+            "success": True,
+            "filename": file.filename,
+            "total_slices": len(processed_tensors),
+            "overall_analysis": overall_analysis,
+            "mri_previews": mri_previews,  # List of base64-encoded previews
+            "has_multiple_slices": len(mri_previews) > 1
+        }
+        
+        # Add predictions (single or multiple)
         if len(all_predictions) == 1:
-            response = {
-                "success": True,
-                "prediction": all_predictions[0],
-                "filename": file.filename,
-                "total_images": len(processed_tensors),
-                "overall_analysis": overall_analysis,
-                "mri_data": mri_data_for_response[0] if mri_data_for_response else None
-            }
+            response["prediction"] = all_predictions[0]
         else:
-            response = {
-                "success": True,
-                "predictions": all_predictions,
-                "filename": file.filename,
-                "total_images": len(processed_tensors),
-                "overall_analysis": overall_analysis,
-                "mri_data": mri_data_for_response
-            }
+            response["predictions"] = all_predictions
         
         return response
         

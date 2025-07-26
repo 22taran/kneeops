@@ -14,25 +14,45 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
   diagnosisConfidence,
   processedImages,
 }) => {
+  // Format confidence for display
+  const displayConfidence = typeof diagnosisConfidence === 'number' 
+    ? (diagnosisConfidence * 100).toFixed(1)
+    : (averageConfidence * 100).toFixed(1);
+    
+  // Get severity class for styling
+  const getSeverityClass = () => {
+    if (diagnosis?.toLowerCase().includes('healthy')) return 'text-green-600 dark:text-green-400';
+    if (diagnosis?.toLowerCase().includes('acl')) return 'text-yellow-600 dark:text-yellow-400';
+    if (diagnosis?.toLowerCase().includes('meniscus')) return 'text-red-600 dark:text-red-400';
+    return 'text-medical-900 dark:text-white';
+  };
+
   return (
     <div className="bg-white dark:bg-medical-800 rounded-lg border border-medical-200 dark:border-medical-700 overflow-hidden">
       <div className="bg-gradient-to-r from-primary-50 to-medical-50 dark:from-medical-900 dark:to-medical-800 p-4 border-b border-medical-200 dark:border-medical-700">
         <h3 className="text-lg font-semibold text-medical-900 dark:text-white">Analysis Complete</h3>
         <p className="text-sm text-medical-500 dark:text-medical-400">
-          Processed {processedImages} image{processedImages !== 1 ? 's' : ''} with {(averageConfidence * 100).toFixed(1)}% average confidence
+          Processed {processedImages} image{processedImages !== 1 ? 's' : ''} with {displayConfidence}% confidence
         </p>
       </div>
       
       <div className="p-4 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-medical-50 dark:bg-medical-900/50 p-4 rounded-lg">
-            <h4 className="text-sm font-medium text-medical-500 dark:text-medical-400 mb-2">Most Common Diagnosis</h4>
-            <p className="text-xl font-semibold text-medical-900 dark:text-white">{diagnosis}</p>
+            <h4 className="text-sm font-medium text-medical-500 dark:text-medical-400 mb-2">Diagnosis</h4>
+            <p className={`text-xl font-semibold ${getSeverityClass()}`}>
+              {diagnosis || 'No diagnosis available'}
+            </p>
           </div>
           <div className="bg-medical-50 dark:bg-medical-900/50 p-4 rounded-lg">
             <h4 className="text-sm font-medium text-medical-500 dark:text-medical-400 mb-2">Confidence</h4>
             <p className="text-xl font-semibold text-primary-600 dark:text-primary-400">
-              {(diagnosisConfidence * 100).toFixed(1)}%
+              {displayConfidence}%
+              {diagnosisConfidence < 0.7 && (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400 block mt-1">
+                  Low confidence - Please consult a specialist
+                </span>
+              )}
             </p>
           </div>
         </div>

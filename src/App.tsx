@@ -11,7 +11,7 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [setMriData] = useState<any>(null);
+  const [setMriPreviews] = useState<Array<{preview: string, index: number}>>([]);
   const [isAppLoading, setIsAppLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -50,13 +50,16 @@ const App: React.FC = () => {
       }
       
       // Upload file to ML model
-      const mlResponse = await apiService.uploadMRI(file);
+      const response = await apiService.uploadMRI(file);
       
-      console.log('Received ML response:', mlResponse);
+      console.log('Received ML response:', response);
       
-      if (!mlResponse.success) {
-        throw new Error(mlResponse.message || 'Failed to upload file');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to upload file');
       }
+      
+      // Extract the data from the response
+      const mlResponse = response;
       
       // Update state with MRI data and predictions
       if (mlResponse.mri_data) {
@@ -64,11 +67,8 @@ const App: React.FC = () => {
         const formattedMriData = Array.isArray(mlResponse.mri_data) 
           ? mlResponse.mri_data 
           : [mlResponse.mri_data];
-        setMriData(formattedMriData);
         console.log('Set MRI data:', formattedMriData);
       }
-      
-
       
       // Create analysis results message
       const analysisMessage: ChatMessage = {
@@ -82,11 +82,15 @@ const App: React.FC = () => {
       if (mlResponse.prediction) {
         // Single image analysis
         const prediction = mlResponse.prediction;
+        // Convert confidence to a number and ensure it's between 0 and 1
+        const confidenceValue = parseFloat(prediction.confidence || prediction.confidence_percentage || '0');
+        const normalizedConfidence = confidenceValue > 1 ? confidenceValue / 100 : confidenceValue;
+        
         const analysisResults = {
-          averageConfidence: (prediction.confidence_percentage || 0) / 100,
-          diagnosis: prediction.class || 'No diagnosis',
-          diagnosisConfidence: (prediction.confidence_percentage || 0) / 100,
-          processedImages: 1
+          averageConfidence: Math.min(Math.max(normalizedConfidence, 0), 1), // Ensure between 0 and 1
+          diagnosis: prediction.class || prediction.class_name || 'No diagnosis',
+          diagnosisConfidence: normalizedConfidence,
+          processedImages: mlResponse.total_images || 1
         };
         
         // Add analysis results to the message
@@ -101,21 +105,44 @@ const App: React.FC = () => {
             timestamp: new Date(),
           };
           setChatMessages(prev => [...prev, analysisMessage, recommendationsMessage]);
+        } else if (mlResponse.overall_analysis?.overall_recommendations) {
+          // Use overall recommendations if available
+          const recommendationsMessage: ChatMessage = {
+            id: `recs-${Date.now()}`,
+            content: `**Recommendations:**\n${mlResponse.overall_analysis.overall_recommendations.join('\n• ')}`,
+            role: 'assistant',
+            timestamp: new Date(),
+          };
+          setChatMessages(prev => [...prev, analysisMessage, recommendationsMessage]);
         } else {
           setChatMessages(prev => [...prev, analysisMessage]);
         }
       } else if (mlResponse.predictions && mlResponse.predictions.length > 0) {
-        // Batch analysis - calculate average confidence
-        const totalConfidence = mlResponse.predictions.reduce(
-          (sum: number, p: any) => sum + (p.confidence_percentage || 0), 0
+        // Batch analysis - process all predictions
+        const predictions = Array.isArray(mlResponse.predictions) ? mlResponse.predictions : [];
+        
+        // Process all predictions to normalize confidence scores
+        const processedPredictions = predictions.map((p: any) => {
+          const confidence = parseFloat(p.confidence || p.confidence_percentage || '0');
+          return {
+            ...p,
+            confidence: confidence > 1 ? confidence / 100 : confidence, // Normalize to 0-1 range
+            className: p.class || p.prediction?.class || 'Unknown'
+          };
+        });
+        
+        // Calculate average confidence from normalized values
+        const totalConfidence = processedPredictions.reduce(
+          (sum: number, p: any) => sum + p.confidence, 0
         );
-        const avgConfidence = totalConfidence / mlResponse.predictions.length;
+        const avgConfidence = processedPredictions.length > 0 
+          ? totalConfidence / processedPredictions.length 
+          : 0;
         
         // Find most common diagnosis
-        const diagnosisCounts = (mlResponse.predictions as Array<{class?: string}>).reduce(
-          (counts: Record<string, number>, p) => {
-            const className = p.class || 'Unknown';
-            counts[className] = (counts[className] || 0) + 1;
+        const diagnosisCounts = processedPredictions.reduce(
+          (counts: Record<string, number>, p: any) => {
+            counts[p.className] = (counts[p.className] || 0) + 1;
             return counts;
           }, 
           {} as Record<string, number>
@@ -129,15 +156,27 @@ const App: React.FC = () => {
         );
         
         const analysisResults = {
-          averageConfidence: avgConfidence / 100,
+          averageConfidence: Math.min(Math.max(avgConfidence, 0), 1), // Ensure between 0 and 1
           diagnosis: mostCommonDiagnosis[0],
-          diagnosisConfidence: (mostCommonDiagnosis[1] / mlResponse.predictions.length) * (avgConfidence / 100),
-          processedImages: mlResponse.predictions.length
+          diagnosisConfidence: avgConfidence,
+          processedImages: processedPredictions.length
         };
         
         // Add analysis results to the message
         analysisMessage.analysisResults = analysisResults;
-        setChatMessages(prev => [...prev, analysisMessage]);
+        
+        // Add recommendations from the first prediction if available
+        if (predictions[0]?.recommendations?.length > 0) {
+          const recommendationsMessage: ChatMessage = {
+            id: `recs-${Date.now()}`,
+            content: `**Recommendations:**\n${predictions[0].recommendations.map((r: string) => `• ${r}`).join('\n')}`,
+            role: 'assistant',
+            timestamp: new Date(),
+          };
+          setChatMessages(prev => [...prev, analysisMessage, recommendationsMessage]);
+        } else {
+          setChatMessages(prev => [...prev, analysisMessage]);
+        }
       } else {
         // Fallback if no predictions are available
         analysisMessage.content = "I couldn't analyze the MRI file. Please try again or upload a different file.";
@@ -242,7 +281,7 @@ const App: React.FC = () => {
                 isUploading={isUploading}
                 fileInputRef={fileInputRef}
               />
-              
+            
             </div>
             
             {/* Right Column - Chat Interface */}
