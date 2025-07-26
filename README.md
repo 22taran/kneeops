@@ -22,28 +22,6 @@ KneeOps is a web-based application for classifying knee MRI images to detect inj
 
 ---
 
-## Model Performance
-
-### Classification Report
-```
-              precision    recall  f1-score   support
-
-           0       0.92      0.93      0.92      3349
-           1       0.74      0.74      0.74       900
-           2       0.84      0.70      0.76       277
-
-    accuracy                           0.88      4526
-   macro avg       0.83      0.79      0.81      4526
-weighted avg       0.88      0.88      0.88      4526
-```
-
-### Key Metrics
-- **Overall Accuracy:** 88%
-- **Class 0 (Healthy) F1-Score:** 0.92
-- **Class 1 (ACL Injury) F1-Score:** 0.74
-- **Class 2 (Meniscus Tear) F1-Score:** 0.76
-- **Dataset Size:** 4,526 samples
-
 ## Project Structure
 
 ```
@@ -65,6 +43,7 @@ KneeOps/
 ├── public/                    # Static files
 └── README.md                 # Project documentation
 ```
+---
 
 ## Model Choice and Rationale
 
@@ -109,6 +88,30 @@ KneeOps/
    - Learning rate scheduling
    - Model checkpointing
 5. **Evaluation:** Compute metrics on validation set
+
+---
+
+## Model Performance
+
+### Classification Report
+```
+              precision    recall  f1-score   support
+
+           0       0.92      0.93      0.92      3349
+           1       0.74      0.74      0.74       900
+           2       0.84      0.70      0.76       277
+
+    accuracy                           0.88      4526
+   macro avg       0.83      0.79      0.81      4526
+weighted avg       0.88      0.88      0.88      4526
+```
+
+### Key Metrics
+- **Overall Accuracy:** 88%
+- **Class 0 (Healthy) F1-Score:** 0.92
+- **Class 1 (ACL Injury) F1-Score:** 0.74
+- **Class 2 (Meniscus Tear) F1-Score:** 0.76
+- **Dataset Size:** 4,526 samples
 
 ### Backend (FastAPI)
 - **Model Serving:**
