@@ -113,6 +113,8 @@ weighted avg       0.88      0.88      0.88      4526
 - **Class 2 (Meniscus Tear) F1-Score:** 0.76
 - **Dataset Size:** 4,526 samples
 
+---
+
 ### Backend (FastAPI)
 - **Model Serving:**
   - Loads trained ResNet18 model
@@ -154,7 +156,9 @@ weighted avg       0.88      0.88      0.88      4526
 - **Integration:** Connect with hospital PACS systems
 - **Performance Optimization:** Quantization and model pruning
 
-### How to Use KneeOps
+---
+
+## How to Use KneeOps
 
 ### Prerequisites
 - Node.js (v16 or later)
@@ -226,6 +230,8 @@ chmod +x start.sh
    - Use the chat interface to ask questions about the results
    - The AI will provide additional information and explanations
 
+---
+
 ### Troubleshooting
 
 - **Backend not starting**: Ensure all dependencies are installed and port 8000 is available
@@ -238,6 +244,8 @@ chmod +x start.sh
   ```bash
   kill $BACKEND_PID $FRONTEND_PID
   ```
+
+---
 
 ### References
 - [Semi-automated detection of anterior cruciate ligament injury from MRI](https://doi.org/10.1016/j.cmpb.2016.12.006)
