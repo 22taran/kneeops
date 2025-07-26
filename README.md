@@ -6,11 +6,11 @@ KneeOps is a web-based application for classifying knee MRI images to detect inj
 ---
 
 ## Table of Contents
-- [Model Performance](#model-performance)
 - [Project Structure](#project-structure)
 - [Model Choice and Rationale](#model-choice-and-rationale)
 - [Data Preprocessing](#data-preprocessing)
 - [Training Pipeline](#training-pipeline)
+- [Model Performance](#model-performance)
 - [Backend (FastAPI)](#backend-fastapi)
 - [Frontend (React)](#frontend-react)
 - [End-to-End Flow](#end-to-end-flow)
@@ -115,7 +115,7 @@ weighted avg       0.88      0.88      0.88      4526
 
 ---
 
-### Backend (FastAPI)
+## Backend (FastAPI)
 - **Model Serving:**
   - Loads trained ResNet18 model
   - Handles image preprocessing and inference
@@ -127,7 +127,7 @@ weighted avg       0.88      0.88      0.88      4526
   - Model loading errors
   - Input validation
 
-### Frontend (React + TypeScript)
+## Frontend (React + TypeScript)
 - **Components:**
   - File upload with drag-and-drop support
   - Real-time chat interface
@@ -136,20 +136,20 @@ weighted avg       0.88      0.88      0.88      4526
 - **Styling:** Tailwind CSS
 - **Responsive Design:** Works on desktop and tablet
 
-### End-to-End Flow
+## End-to-End Flow
 1. User uploads MRI images via the web interface
 2. Frontend sends images to the backend API
 3. Backend preprocesses images and runs inference using ResNet18
 4. Predictions (class and confidence) are returned to the frontend
 5. Frontend displays the results in a user-friendly format
 
-### Deployment & Maintenance
+## Deployment & Maintenance
 - **Model Versioning:** Track model performance and versions
 - **Monitoring:** Log API requests and model performance
 - **Scaling:** Containerized deployment with Docker
 - **CI/CD:** Automated testing and deployment pipeline
 
-### Future Improvements
+## Future Improvements
 - **Model Upgrades:** Experiment with deeper ResNets or Vision Transformers
 - **Explainability:** Add Grad-CAM visualizations
 - **Multi-class/Multi-label Support:** Detect multiple injuries per image
@@ -232,7 +232,7 @@ chmod +x start.sh
 
 ---
 
-### Troubleshooting
+## Troubleshooting
 
 - **Backend not starting**: Ensure all dependencies are installed and port 8000 is available
 - **Frontend not connecting to backend**: Check that the backend is running and the API URL is correctly set in the frontend configuration
@@ -247,7 +247,7 @@ chmod +x start.sh
 
 ---
 
-### References
+## References
 - [Semi-automated detection of anterior cruciate ligament injury from MRI](https://doi.org/10.1016/j.cmpb.2016.12.006)
 - [Kaggle Dataset](https://www.kaggle.com/datasets/sohaibanwaar1203/kneemridataset)
 - [He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning for Image Recognition. CVPR.](https://arxiv.org/abs/1512.03385)
