@@ -11,7 +11,6 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [setMriPreviews] = useState<Array<{preview: string, index: number}>>([]);
   const [isAppLoading, setIsAppLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -256,11 +255,16 @@ const App: React.FC = () => {
   // Loading state
   if (isAppLoading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Loading KneeOps</h2>
-          <p className="text-gray-600 dark:text-gray-400">Preparing your workspace...</p>
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-medical-50 dark:from-medical-900 dark:via-medical-800 dark:to-medical-900 flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-primary-200 dark:border-primary-800 rounded-full mx-auto mb-2"></div>
+            <div className="w-20 h-20 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto absolute top-0 left-1/2 transform -translate-x-1/2"></div>
+          </div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 dark:from-primary-400 dark:to-primary-600 bg-clip-text text-transparent mt-6 mb-2">
+            Loading KneeOps
+          </h2>
+          <p className="text-medical-600 dark:text-medical-400">Preparing your workspace...</p>
         </div>
       </div>
     );
@@ -268,25 +272,26 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-medical-50 via-white to-primary-50/30 dark:from-medical-950 dark:via-medical-900 dark:to-medical-950 transition-colors duration-300 overflow-hidden">
         <Header className="flex-shrink-0" />
         
-        <main className="flex-1 container mx-auto px-4 py-4 min-h-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full min-h-[calc(100vh-200px)]">
+        <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 min-h-0 flex flex-col overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0 max-h-full">
             
             {/* MRI Viewer */}
-            <div className="lg:col-span-1 flex flex-col space-y-4 max-h-full">
-              <FileUpload 
-                onFileUpload={handleFileUpload}
-                isUploading={isUploading}
-                fileInputRef={fileInputRef}
-              />
-            
+            <div className="lg:col-span-1 flex flex-col space-y-6 min-h-0">
+              <div className="bg-white dark:bg-medical-800 rounded-2xl shadow-lg border border-medical-200 dark:border-medical-700 p-6 backdrop-blur-sm">
+                <FileUpload 
+                  onFileUpload={handleFileUpload}
+                  isUploading={isUploading}
+                  fileInputRef={fileInputRef}
+                />
+              </div>
             </div>
             
             {/* Right Column - Chat Interface */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
-              <div className={cn("flex-1 flex flex-col min-h-0", {
+            <div className="lg:col-span-2 bg-white dark:bg-medical-800 rounded-2xl shadow-lg border border-medical-200 dark:border-medical-700 flex flex-col h-full max-h-full min-h-0 overflow-hidden backdrop-blur-sm">
+              <div className={cn("flex flex-col h-full max-h-full min-h-0 overflow-hidden", {
                 "opacity-50 pointer-events-none": isProcessing
               })}>
                 <ChatInterface 
@@ -298,15 +303,18 @@ const App: React.FC = () => {
                       ? "Upload an MRI file to begin analysis..." 
                       : "Ask me anything about this MRI scan..."
                   }
-                  className="h-full"
+                  className="h-full max-h-full"
                 />
               </div>
             </div>
           </div>
         </main>
         
-        <footer className="flex-shrink-0 py-4 px-6 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>KneeOps AI - Not for diagnostic use. Always consult with a healthcare professional.</p>
+        <footer className="flex-shrink-0 py-6 px-6 border-t border-medical-200 dark:border-medical-800 bg-white/80 dark:bg-medical-900/80 backdrop-blur-sm text-center">
+          <p className="text-sm text-medical-600 dark:text-medical-400">
+            <span className="font-semibold text-primary-600 dark:text-primary-400">KneeOps AI</span>
+            {' '}— Not for diagnostic use. Always consult with a healthcare professional.
+          </p>
         </footer>
       </div>
     </ThemeProvider>

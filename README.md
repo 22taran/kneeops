@@ -3,9 +3,20 @@
 ## Overview
 KneeOps is a web-based application for classifying knee MRI images to detect injuries using deep learning. It features a React frontend for user interaction and a Python backend (FastAPI) for model inference. The backend uses a ResNet18 convolutional neural network, trained on labeled MRI data, to provide accurate predictions.
 
+## Screenshots
+
+### Main Dashboard
+![Dashboard](screenshots/main_view.png)
+*Main application interface with file upload and chat sections*
+
+### Analysis Results
+![Results](screenshots/main_view2.png)
+*Detailed analysis results with confidence scores and recommendations*
+
 ---
 
 ## Table of Contents
+- [Screenshots](#screenshots)
 - [Project Structure](#project-structure)
 - [Model Choice and Rationale](#model-choice-and-rationale)
 - [Data Preprocessing](#data-preprocessing)

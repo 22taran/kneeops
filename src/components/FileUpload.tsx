@@ -80,12 +80,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {/* Drag and Drop Zone */}
       <div 
         {...getRootProps()} 
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors duration-200 cursor-pointer ${
+        className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 cursor-pointer relative overflow-hidden group ${
           isDragging 
-            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-            : 'border-medical-200 dark:border-medical-700 hover:border-primary-400 dark:hover:border-primary-500 bg-white dark:bg-medical-800/50'
+            ? 'border-primary-500 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/30 dark:to-primary-800/20 scale-[1.02] shadow-lg shadow-primary-500/10' 
+            : 'border-medical-300 dark:border-medical-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gradient-to-br from-white to-medical-50/50 dark:from-medical-800/30 dark:to-medical-900/50 hover:shadow-xl hover:shadow-primary-500/5'
         }`}
       >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-600/0 group-hover:from-primary-500/5 group-hover:to-primary-600/5 transition-all duration-300"></div>
         <input 
           {...getInputProps()} 
           ref={fileInputRef}
@@ -95,16 +96,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
           className="hidden"
         />
         
-        <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="p-3 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
-            <UploadIcon className="w-6 h-6" />
+        <div className="flex flex-col items-center justify-center space-y-4 relative z-10">
+          <div className={`p-4 rounded-2xl transition-all duration-300 ${
+            isDragging 
+              ? 'bg-primary-500 text-white scale-110 shadow-lg shadow-primary-500/30' 
+              : 'bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/40 dark:to-primary-800/40 text-primary-600 dark:text-primary-400 group-hover:scale-105'
+          }`}>
+            <UploadIcon className="w-8 h-8" />
           </div>
           
-          <div className="space-y-1">
-            <h3 className="text-lg font-medium text-medical-900 dark:text-white">
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-medical-900 dark:text-white">
               {isDragging ? 'Drop the file here' : 'Drag and drop your MRI file'}
             </h3>
-            <p className="text-sm text-medical-500 dark:text-medical-400">
+            <p className="text-sm text-medical-600 dark:text-medical-400">
               {acceptedFileTypes.map(ext => ext.toUpperCase()).join(', ')} files up to 50MB
             </p>
           </div>
@@ -115,7 +120,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
               e.stopPropagation();
               fileInputRef.current?.click();
             }}
-            className="mt-2 px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300 transition-colors"
+            className="mt-2 px-6 py-2.5 text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 bg-primary-50 dark:bg-primary-900/30 hover:bg-primary-100 dark:hover:bg-primary-900/50 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
           >
             or select a file
           </button>
@@ -124,18 +129,21 @@ const FileUpload: React.FC<FileUploadProps> = ({
       
       {/* Selected File Preview */}
       {file && (
-        <div className="p-4 rounded-lg bg-medical-50 dark:bg-medical-800/50 border border-medical-200 dark:border-medical-700">
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center space-x-2">
-            <File className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-300">
-              {file.name}
-            </span>
-            <span className="text-xs text-gray-500">
-              {formatFileSize(file.size)}
-            </span>
-          </div>
-          <div className="flex space-x-2">
+        <div className="p-5 rounded-xl bg-gradient-to-br from-medical-50 to-white dark:from-medical-800/50 dark:to-medical-900/30 border border-medical-200 dark:border-medical-700 shadow-sm animate-slide-up">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
+              <div className="flex-shrink-0 p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                <File className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-medical-900 dark:text-white truncate">
+                  {file.name}
+                </p>
+                <p className="text-xs text-medical-500 dark:text-medical-400">
+                  {formatFileSize(file.size)}
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -144,44 +152,46 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   fileInputRef.current.value = '';
                 }
               }}
-              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="ml-3 inline-flex items-center px-3 py-2 border border-medical-300 dark:border-medical-600 shadow-sm text-xs font-medium rounded-lg text-medical-700 dark:text-medical-300 bg-white dark:bg-medical-800 hover:bg-medical-50 dark:hover:bg-medical-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 hover:scale-105 active:scale-95"
             >
-              <X className="h-3 w-3 mr-1" />
+              <X className="h-3.5 w-3.5 mr-1.5" />
               Remove
             </button>
           </div>
         </div>
-      </div>
       )}
       
       {/* Error Message */}
       {error && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start space-x-2">
-          <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+        <div className="p-4 rounded-xl bg-gradient-to-br from-error-50 to-error-100/50 dark:from-error-900/30 dark:to-error-800/20 border border-error-200 dark:border-error-800 flex items-start space-x-3 animate-slide-up shadow-sm">
+          <AlertCircle className="w-5 h-5 text-error-500 dark:text-error-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm font-medium text-error-700 dark:text-error-300">{error}</p>
         </div>
       )}
       
       {/* Upload Button */}
-      <div className="flex flex-col sm:flex-row gap-2 w-full">
+      <div className="flex flex-col sm:flex-row gap-3 w-full">
         <button
           type="button"
           onClick={handleUpload}
           disabled={!file || isUploading}
           className={
-            'w-full py-2.5 px-4 rounded-lg text-white font-medium flex items-center justify-center space-x-2 transition-all duration-200 ' +
+            'w-full py-3.5 px-6 rounded-xl text-white font-semibold flex items-center justify-center space-x-2 transition-all duration-200 shadow-lg ' +
             (!file || isUploading
-              ? 'bg-medical-300 dark:bg-medical-700 cursor-not-allowed'
-              : 'bg-primary-600 hover:bg-primary-700 dark:bg-primary-600 dark:hover:bg-primary-700 shadow-sm hover:shadow-md')
+              ? 'bg-medical-300 dark:bg-medical-700 cursor-not-allowed shadow-none'
+              : 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 dark:from-primary-600 dark:to-primary-700 dark:hover:from-primary-700 dark:hover:to-primary-800 hover:shadow-xl hover:shadow-primary-500/30 hover:scale-[1.02] active:scale-[0.98]')
           }
         >
           {isUploading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Uploading...
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Uploading...</span>
             </>
           ) : (
-            'Upload File'
+            <>
+              <UploadIcon className="h-5 w-5" />
+              <span>Upload File</span>
+            </>
           )}
         </button>
       </div>
